@@ -1,0 +1,22 @@
+import torch
+
+saved_images = []  # Global variable to store images
+
+def callback_on_step_end(pipe, step, timestep, callback_kwargs):
+    global saved_images
+    latents = callback_kwargs["latents"]  # Extract latents
+
+    # Ensure latents are properly scaled before decoding
+    latents = latents.to(pipe.vae.dtype)  # Ensure correct dtype for VAE
+    latents = latents / pipe.vae.config.scaling_factor  # Unscale latents
+
+    # Decode latents to image tensor
+    with torch.no_grad():
+        image_tensor = pipe.vae.decode(latents).sample  # Ensure correct key `.sample`
+
+    # Convert image tensor to PIL format
+    image = pipe.image_processor.postprocess(image_tensor, output_type="pil")
+
+    saved_images.append(image)  # Append to the global list
+
+    return {"latents": latents}  # Return updated latents
