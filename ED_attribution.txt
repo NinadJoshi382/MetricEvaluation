@@ -1,0 +1,147 @@
+# Re-import required packages after state reset
+
+import numpy as np
+from sklearn.linear_model import Ridge
+from scipy.spatial.distance import cdist
+from scipy.special import comb
+from tqdm import tqdm
+import random
+from collections import defaultdict
+
+# -----------------------------
+# 1. Energy Distance Computation
+# -----------------------------
+
+def energy_distance(X, Y):
+    """Compute energy distance between two sets of vectors X and Y."""
+    nx, ny = len(X), len(Y)
+    XY = np.mean(cdist(X, Y))
+    XX = np.mean(cdist(X, X)) if nx > 1 else 0
+    YY = np.mean(cdist(Y, Y)) if ny > 1 else 0
+    return 2 * XY - XX - YY
+
+# -----------------------------
+# 2. Generate Random Subsets (each image appears in ≥3)
+# -----------------------------
+
+def generate_subsets(train_indices, subset_size=50, min_coverage=3, seed=42):
+    """Create random subsets so that each training index appears in ≥3 subsets."""
+    random.seed(seed)
+    index_count = {idx: 0 for idx in train_indices}
+    subsets = []
+
+    while min(index_count.values()) < min_coverage:
+        subset = set(random.sample(train_indices, subset_size))
+        subsets.append(subset)
+        for idx in subset:
+            index_count[idx] += 1
+
+    return subsets
+
+# -----------------------------
+# 3. Permutation Test for Each Subset and Generated Image
+# -----------------------------
+
+def permutation_test(X_subset, g, num_permutations=100, seed=0, alpha=0.05):
+    """Permutation test between subset and one generated embedding."""
+    rng = np.random.default_rng(seed)
+    n = len(X_subset)
+    combined = np.vstack([X_subset, g])
+    observed = energy_distance(X_subset, g)
+
+    count = 0
+    for _ in range(num_permutations):
+        perm = rng.permutation(n + 1)
+        A = combined[perm[:n]]
+        B = combined[perm[n:]]
+        dist = energy_distance(A, B)
+        if dist >= observed:
+            count += 1
+    p_value = count / num_permutations
+    return p_value < alpha  # True = retain null = similar
+
+# -----------------------------
+# 4. Select Training Images in ≥2 "passing" subsets
+# -----------------------------
+
+def select_training_images(subsets, passing_flags, min_passes=2):
+    """Return training image indices that appear in ≥2 passing subsets."""
+    count_map = defaultdict(int)
+
+    for subset, flag in zip(subsets, passing_flags):
+        if flag:
+            for idx in subset:
+                count_map[idx] += 1
+
+    selected_indices = [idx for idx, count in count_map.items() if count >= min_passes]
+    return selected_indices
+
+# -----------------------------
+# 5. KernelSHAP with Negative Energy Distance
+# -----------------------------
+
+def kernel_shap(train_embeddings, gen_embedding, M=100, l2_reg=1e-6):
+    """Approximate Shapley values using KernelSHAP on a single generated image."""
+    d = len(train_embeddings)
+    weights = []
+    values = []
+    Z = []
+
+    rng = np.random.default_rng(0)
+
+    for _ in range(M):
+        mask = rng.integers(0, 2, size=d)
+        if not np.any(mask):
+            continue  # skip empty subset
+
+        subset = [train_embeddings[i] for i in range(d) if mask[i]]
+        v = -energy_distance(subset, gen_embedding)  # negative energy distance as utility
+
+        Z.append(mask)
+        values.append(v)
+        k = np.sum(mask)
+        w = (d - 1) / (comb(d, k) * k * (d - k)) if 0 < k < d else 1000  # Shapley kernel
+        weights.append(w)
+
+    Z = np.array(Z)
+    values = np.array(values)
+    weights = np.array(weights)
+
+    # Fit weighted linear model
+    model = Ridge(alpha=l2_reg, fit_intercept=False)
+    model.fit(Z, values, sample_weight=weights)
+    return model.coef_
+
+# -----------------------------
+# 6. Main Orchestration Function
+# -----------------------------
+
+def run_pipeline(train_embeds, gen_embeds, subset_size=50, min_coverage=3):
+    """Full pipeline to select training images and compute Shapley values."""
+    n_train = train_embeds.shape[0]
+    train_indices = list(range(n_train))
+
+    # Step 1: Generate random subsets
+    subsets = generate_subsets(train_indices, subset_size, min_coverage)
+
+    # Step 2–3: Test each subset with all generated images
+    passing_flags = [False] * len(subsets)
+
+    for gen in tqdm(gen_embeds, desc="Testing subsets"):
+        for i, subset in enumerate(subsets):
+            subset_embeds = train_embeds[list(subset)]
+            if permutation_test(subset_embeds, gen):
+                passing_flags[i] = True  # at least one gen image matched
+
+    # Step 4: Select training images appearing in ≥2 passing subsets
+    selected_indices = select_training_images(subsets, passing_flags)
+
+    # Step 5: Compute KernelSHAP values over reduced set
+    reduced_train = train_embeds[selected_indices]
+    shapley_matrix = []
+
+    for gen in tqdm(gen_embeds, desc="Computing Shapley"):
+        shapley_vals = kernel_shap(reduced_train, gen)
+        shapley_matrix.append(shapley_vals)
+
+    return selected_indices, np.array(shapley_matrix)  # [num_gen, num_selected]
