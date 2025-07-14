@@ -1,0 +1,60 @@
+import torch
+import torch.nn as nn
+import torchvision.models as models
+import torchvision.transforms as transforms
+from PIL import Image
+
+class VGGFeatures(nn.Module):
+    def __init__(self, layers=None):
+        super(VGGFeatures, self).__init__()
+        vgg = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features
+        self.selected_layers = layers or ['0', '5', '10', '19', '28']
+        self.model = nn.Sequential()
+        for name, layer in vgg._modules.items():
+            self.model.add_module(name, layer)
+            if name == self.selected_layers[-1]:
+                break
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+    def forward(self, x):
+        features = []
+        for name, layer in self.model._modules.items():
+            x = layer(x)
+            if name in self.selected_layers:
+                features.append(x)
+        return features
+
+def gram_matrix(tensor):
+    b, c, h, w = tensor.size()
+    features = tensor.view(b, c, h * w)
+    G = torch.bmm(features, features.transpose(1, 2))  # (b, c, c)
+    return G / (c * h * w)
+
+def load_and_preprocess(image_path, device):
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor()
+    ])
+    image = Image.open(image_path).convert('RGB')
+    return transform(image).unsqueeze(0).to(device)  # Add batch dimension
+
+def get_gram_embedding(image_path, device='cuda'):
+    device = torch.device(device if torch.cuda.is_available() else 'cpu')
+    model = VGGFeatures().to(device).eval()
+
+    img_tensor = load_and_preprocess(image_path, device)
+    features = model(img_tensor)
+
+    gram_embeddings = []
+    for f in features:
+        g = gram_matrix(f)  # shape: [1, C, C]
+        g_flat = g.view(-1)  # flatten [C×C]
+        gram_embeddings.append(g_flat)
+
+    final_embedding = torch.cat(gram_embeddings).cpu()  # Final Gram vector
+    return final_embedding  # shape: (sum of all C×C)
+
+# Example usage
+embedding = get_gram_embedding("path_to_your_image.jpg")
+print("Gram embedding shape:", embedding.shape)
