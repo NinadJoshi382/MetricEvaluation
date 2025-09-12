@@ -1,0 +1,46 @@
+import cv2
+import numpy as np
+from skimage.metrics import structural_similarity as ssim
+
+def read_image(path, as_gray=False):
+    if as_gray:
+        im = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    else:
+        im = cv2.imread(path, cv2.IMREAD_COLOR)  # BGR
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)  # convert to RGB
+    if im is None:
+        raise FileNotFoundError(f"Could not read: {path}")
+    return im
+
+def compute_ssim(img1, img2, multichannel=True):
+    # ensure same shape
+    if img1.shape != img2.shape:
+        raise ValueError("Images must have the same shape. Got %s and %s" % (img1.shape, img2.shape))
+    # If images are uint8, data_range is 255; if float, set appropriately
+    if img1.dtype.kind in ('u','i'):
+        data_range = np.iinfo(img1.dtype).max - np.iinfo(img1.dtype).min
+    else:
+        # float images assumed in [0,1] or [0,255] — set explicitly if you know
+        data_range = img1.max() - img1.min()
+        if data_range == 0:
+            data_range = 1.0
+
+    score, ssim_map = ssim(img1, img2, data_range=data_range, multichannel=multichannel, full=True)
+    return float(score), ssim_map
+
+if __name__ == "__main__":
+    # replace with your files
+    path_ref = "reference.png"
+    path_test = "test.png"
+
+    # read as color (set as_gray=True to force grayscale)
+    im_ref = read_image(path_ref, as_gray=False)
+    im_test = read_image(path_test, as_gray=False)
+
+    # compute SSIM
+    score, ssim_map = compute_ssim(im_ref, im_test, multichannel=True)
+    print("SSIM score:", score)   # close to 1.0 = similar
+
+    # optionally save an SSIM heatmap (convert to 0..255)
+    import matplotlib.pyplot as plt
+    plt.imsave("ssim_map.png", ssim_map, cmap="viridis")
