@@ -1,0 +1,33 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+# X-axis: updated percentiles (removing 0th index)
+percentiles = [25, 50, 75, 100]
+x = np.arange(len(percentiles))  # [0, 1, 2, 3]
+
+# Y-axis: remove 0th index
+semantic = [198, 18, 1, 0]  # Here the values much be changed as the readings
+structure = [218, 14, 2, 0]
+style = [210, 17, 1, 0]
+
+# Width of each bar
+bar_width = 0.25
+
+# Plot grouped bars
+plt.bar(x - bar_width, semantic, width=bar_width, color='blue', label='Semantic')
+plt.bar(x, structure, width=bar_width, color='green', label='Structure')
+plt.bar(x + bar_width, style, width=bar_width, color='red', label='Style')
+
+# X-axis ticks and labels
+plt.xticks(x, percentiles)
+plt.xlabel('Percentile')
+plt.ylabel('Number of Samples pruned')
+# plt.title('Sample Distribution Across Percentiles (25-100)')
+plt.legend()
+plt.grid(axis='y', linestyle='--', linewidth=0.5)
+
+# Optional: adjust y-axis
+plt.ylim(0, 250)
+
+plt.tight_layout()
+plt.show()
