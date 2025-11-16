@@ -1,0 +1,60 @@
+Diffusion models have emerged as the back bone of several modern generative AI models
+for effective visual content generation. However, their opaque nature raises fundamental questions about which training samples are responsible for specific generations, especially in applications involving bias detection, model auditing,
+and dataset curation. Data attribution seeks to
+identify the training samples that highly influence
+the output of generative models, a task that becomes especially challenging when targeting finescale attributes for attribution. Prior work has
+focused on broad concepts such as global features or entire images, often overlooking the nuances of fine-grained attributes and relying on 016
+group-based strategies that dilute individual in
+fluence. We propose a novel latent distribution
+conditioned method DoTA for data attribution.
+DoTA presents an effective search space pruning
+technique based on the latent distribution matching between the generated and training data for effective and controlled attribution. We demonstrate the effectiveness of attribution through extensive quantitative and qualitative evaluations 025
+across challenging settings such as counterfactual evaluation and robustness to adversarial attack. 
+
+
+----------------------------------------------------------------------------------------------------------
+
+Reviwer 1
+
+Paper Summary:
+The paper proposes DoTA, a framework for fine-grained training data attribution in text-to-image diffusion models. Unlike gradient-based or retraining-based approaches, DoTA operates in the latent representation space and uses Energy Distance to prune the search space before computing Shapley Values for influence estimation. The method is designed to capture fine-scale attributes by leveraging pretrained feature extractors (CLIP, DINOv2, Gram matrices). Experiments focus on the PopArt dataset, with LoRA-based fine-tuning of SDXL, and evaluate attribution effectiveness via counterfactual retraining (Take-K / Leave-K) and robustness under adversarial attacks. Results show that DoTA with search space pruning improves attribution quality, robustness, and interpretability compared to cosine similarity and DoTA without pruning.
+
+Paper Strengths:
+(i) This work focuses on the practical and increasingly important issue of training data attribution for diffusion-based text-to-image generation, especially for fine-grained attributes such as semantics, structure, and style.
+
+(ii) The paper proposes a novel combination of latent distribution-based search space pruning (via Energy Distance) and Shapley Value attribution, aiming to improve both scalability and robustness over gradient-based or retraining-based attribution methods.
+
+(iii) The method is model-agnostic and does not require gradients, training logs, or access to model internals, making it applicable to closed-source or API-based generative models.
+
+
+Reviwer 2
+
+Paper Summary:
+This paper presents DoTA, a t2i diffusion model data attribution method that performs latent-space distribution matching for fine-grained and robust attribution of semantics, structure, and style. The approach first fine-tunes the model on a known dataset for traceability, then prunes the search space using energy distance to select training samples whose latent distributions are closest to the generated outputs, and finally uses Shapley values to quantify each sample’s contribution. Experiments on the PopArt dataset show that DoTA outperforms cosine similarity baselines in counterfactual evaluation and under adversarial attack, producing attribution results that accurately capture semantic, structural, and stylistic influences in generated images.
+
+Paper Strengths:
+The paper propose a novel method of doing data attribution for diffusion models by combining latent distribution matching with Shapley value attribution, using energy distance for search space pruning.
+The experiments are extensive and carefully designed, covering semantic, structural, and stylistic attributes, and evaluating the method under counterfactual scenarios as well as adversarial attacks to show its robustness.
+The method gives interpretable rankings of influential training samples, and the qualitative examples clearly show its potential for practical use in areas like copyright tracking and model auditing.
+
+
+Reviwer 3
+
+Paper Summary:
+This paper presents DoTA, a latent distribution conditioned framework for data attribution in text-to-image diffusion models. DoTA combines Energy Distance (ED)-based search space pruning with Shapley value estimation, providing fine-grained attribution along semantics, structure, and style dimensions. The method avoids gradients or retraining, making it applicable to black-box diffusion APIs. Evaluation spans counterfactual setups (Take-K / Leave-K) and adversarial conditions, showing improvements over cosine similarity baselines.
+
+Paper Strengths:
+Novel Post-Hoc Attribution Strategy: The combination of ED-based pruning with KernelSHAP is well justified and shown to be scalable and model-agnostic.
+
+Attribute-Specific Attribution: By separating semantics (CLIP), structure (DINOv2), and style (Gram), DoTA achieves finer granularity than existing similarity-based baselines.
+
+Principled Theoretical Foundation: Strong justification for ED in the Shapley framework, with fairness axioms discussed in detail.
+
+Expanded Experimental Scope: In addition to PopArt, the revised version includes Ukiyo-e and Munch datasets, showing robustness across diverse artistic domains.
+
+Runtime and Efficiency Analysis: The authors now provide runtime and memory usage comparisons, demonstrating large efficiency gains with ED pruning.
+
+Comprehensive Ablations: Additional studies on PCA dimensionality (50 vs 400), pruning thresholds, and K values clarify stability and trade-offs.
+
+Clearer Positioning vs Training-Time Methods: The rebuttal strengthens the comparison to Montrage and related runtime attribution frameworks, clarifying DoTA’s post-hoc, attribute-specific advantage.
+
